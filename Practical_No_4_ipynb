@@ -1,0 +1,294 @@
+{
+  "nbformat": 4,
+  "nbformat_minor": 0,
+  "metadata": {
+    "colab": {
+      "provenance": []
+    },
+    "kernelspec": {
+      "name": "python3",
+      "display_name": "Python 3"
+    },
+    "language_info": {
+      "name": "python"
+    }
+  },
+  "cells": [
+    {
+      "cell_type": "code",
+      "source": [],
+      "metadata": {
+        "id": "fS4IW6UMPhUL"
+      },
+      "execution_count": 3,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "import numpy as np\n",
+        "from tensorflow.keras.models import Model\n",
+        "from tensorflow.keras.layers import Input, LSTM, Dense\n",
+        "\n",
+        "#define parameters for our dataset\n",
+        "num_samples = 1000 #number of training exampls\n",
+        "input_seq_len = 10 #length of input seq\n",
+        "target_seq_len = 10 #length of target sequence\n",
+        "num_features = 5 #number of unique word or tokes in vocab\n",
+        "\n",
+        "#generate random input sequence (one-hot encoded for simplicity)\n",
+        "#Each input sequence will be a series of integer indices\n",
+        "encoder_input_data = np.random.randint(0, num_features, size=(num_samples, input_seq_len))\n",
+        "\n",
+        "\n",
+        "#Generate target sequence\n",
+        "\n",
+        "decoder_target_data = np.zeros((num_samples, target_seq_len, num_features), dtype='float32')\n",
+        "decoder_input_data = np.zeros((num_samples, target_seq_len, num_features), dtype='float32')\n",
+        "\n",
+        "#create one hot encoded version for both input and target for keras\n",
+        "encoder_input_one_hot = np.zeros(\n",
+        "    (num_samples, input_seq_len, num_features), dtype='float32'\n",
+        ")\n",
+        "for i, sequence in enumerate(encoder_input_data):\n",
+        "  for t, feature in enumerate(sequence):\n",
+        "    encoder_input_one_hot[i, t, feature] = 1.0\n",
+        "\n",
+        "\n",
+        "#generate target sequence which are reverssed input\n",
+        "#decoder target will be the reversed sequence\n",
+        "for i in range(num_samples):\n",
+        "  reversed_sequence = encoder_input_data[i][::-1]\n",
+        "  decoder_input_data[i, 0, 0] = 1.0 #token start\n",
+        "  for t, feature in enumerate(reversed_sequence[:-1]):\n",
+        "    decoder_input_data[i, t+1, feature] = 1.0\n",
+        "\n",
+        "#decoder target\n",
+        "for t,  feature in enumerate(reversed_sequence):\n",
+        "  decoder_target_data[i, t, feature] = 1.0\n",
+        "\n",
+        "print(\"Encoder input shape:\", encoder_input_one_hot.shape)\n",
+        "print(\"Decoder input shape:\", decoder_input_data.shape)\n",
+        "print(\"Decoder target shape:\", decoder_target_data.shape)\n",
+        "\n",
+        "print(\"\\nSample encoder input(induces):\")\n",
+        "print(encoder_input_one_hot[0])\n",
+        "\n",
+        "print(\"\\nSample decoder target(one-hot, indicating indices):\")\n",
+        "print(np.argmax(decoder_target_data[0], axis=-1))\n",
+        "\n",
+        "#encoder setup\n",
+        "latent_dim = 256\n",
+        "\n",
+        "encoder_inputs = Input(shape=(None, num_features))\n",
+        "encoder_lstm = LSTM(latent_dim, return_state=True)\n",
+        "encoder_outputs, state_h, state_c = encoder_lstm(encoder_inputs)\n",
+        "encoder_states = [state_h, state_c]\n",
+        "\n",
+        "#decoder\n",
+        "decoder_inputs = Input(shape=(None, num_features))\n",
+        "decoder_lstm = LSTM(latent_dim, return_sequences=True, return_state=True)\n",
+        "decoder_outputs, _, _ = decoder_lstm(decoder_inputs, initial_state=encoder_states)\n",
+        "decoder_dense = Dense(num_features, activation='softmax')\n",
+        "decoder_outputs = decoder_dense(decoder_outputs)\n",
+        "\n",
+        "#define the model\n",
+        "model = Model([encoder_inputs, decoder_inputs], decoder_outputs)\n",
+        "\n",
+        "model.summary()"
+      ],
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/",
+          "height": 713
+        },
+        "id": "Qh91UH83PhQt",
+        "outputId": "721c322b-b124-4d0b-f0a5-35969292135a"
+      },
+      "execution_count": 6,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "Encoder input shape: (1000, 10, 5)\n",
+            "Decoder input shape: (1000, 10, 5)\n",
+            "Decoder target shape: (1000, 10, 5)\n",
+            "\n",
+            "Sample encoder input(induces):\n",
+            "[[0. 0. 0. 1. 0.]\n",
+            " [0. 0. 0. 0. 1.]\n",
+            " [1. 0. 0. 0. 0.]\n",
+            " [0. 0. 1. 0. 0.]\n",
+            " [1. 0. 0. 0. 0.]\n",
+            " [0. 1. 0. 0. 0.]\n",
+            " [0. 0. 0. 0. 1.]\n",
+            " [0. 0. 1. 0. 0.]\n",
+            " [0. 0. 0. 1. 0.]\n",
+            " [0. 0. 1. 0. 0.]]\n",
+            "\n",
+            "Sample decoder target(one-hot, indicating indices):\n",
+            "[0 0 0 0 0 0 0 0 0 0]\n"
+          ]
+        },
+        {
+          "output_type": "display_data",
+          "data": {
+            "text/plain": [
+              "\u001b[1mModel: \"functional\"\u001b[0m\n"
+            ],
+            "text/html": [
+              "<pre style=\"white-space:pre;overflow-x:auto;line-height:normal;font-family:Menlo,'DejaVu Sans Mono',consolas,'Courier New',monospace\"><span style=\"font-weight: bold\">Model: \"functional\"</span>\n",
+              "</pre>\n"
+            ]
+          },
+          "metadata": {}
+        },
+        {
+          "output_type": "display_data",
+          "data": {
+            "text/plain": [
+              "┏━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━┓\n",
+              "┃\u001b[1m \u001b[0m\u001b[1mLayer (type)       \u001b[0m\u001b[1m \u001b[0m┃\u001b[1m \u001b[0m\u001b[1mOutput Shape     \u001b[0m\u001b[1m \u001b[0m┃\u001b[1m \u001b[0m\u001b[1m   Param #\u001b[0m\u001b[1m \u001b[0m┃\u001b[1m \u001b[0m\u001b[1mConnected to     \u001b[0m\u001b[1m \u001b[0m┃\n",
+              "┡━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━┩\n",
+              "│ input_layer_2       │ (\u001b[38;5;45mNone\u001b[0m, \u001b[38;5;45mNone\u001b[0m, \u001b[38;5;34m5\u001b[0m)   │          \u001b[38;5;34m0\u001b[0m │ -                 │\n",
+              "│ (\u001b[38;5;33mInputLayer\u001b[0m)        │                   │            │                   │\n",
+              "├─────────────────────┼───────────────────┼────────────┼───────────────────┤\n",
+              "│ input_layer_3       │ (\u001b[38;5;45mNone\u001b[0m, \u001b[38;5;45mNone\u001b[0m, \u001b[38;5;34m5\u001b[0m)   │          \u001b[38;5;34m0\u001b[0m │ -                 │\n",
+              "│ (\u001b[38;5;33mInputLayer\u001b[0m)        │                   │            │                   │\n",
+              "├─────────────────────┼───────────────────┼────────────┼───────────────────┤\n",
+              "│ lstm_2 (\u001b[38;5;33mLSTM\u001b[0m)       │ [(\u001b[38;5;45mNone\u001b[0m, \u001b[38;5;34m256\u001b[0m),     │    \u001b[38;5;34m268,288\u001b[0m │ input_layer_2[\u001b[38;5;34m0\u001b[0m]… │\n",
+              "│                     │ (\u001b[38;5;45mNone\u001b[0m, \u001b[38;5;34m256\u001b[0m),      │            │                   │\n",
+              "│                     │ (\u001b[38;5;45mNone\u001b[0m, \u001b[38;5;34m256\u001b[0m)]      │            │                   │\n",
+              "├─────────────────────┼───────────────────┼────────────┼───────────────────┤\n",
+              "│ lstm_3 (\u001b[38;5;33mLSTM\u001b[0m)       │ [(\u001b[38;5;45mNone\u001b[0m, \u001b[38;5;45mNone\u001b[0m,     │    \u001b[38;5;34m268,288\u001b[0m │ input_layer_3[\u001b[38;5;34m0\u001b[0m]… │\n",
+              "│                     │ \u001b[38;5;34m256\u001b[0m), (\u001b[38;5;45mNone\u001b[0m,      │            │ lstm_2[\u001b[38;5;34m0\u001b[0m][\u001b[38;5;34m1\u001b[0m],     │\n",
+              "│                     │ \u001b[38;5;34m256\u001b[0m), (\u001b[38;5;45mNone\u001b[0m,      │            │ lstm_2[\u001b[38;5;34m0\u001b[0m][\u001b[38;5;34m2\u001b[0m]      │\n",
+              "│                     │ \u001b[38;5;34m256\u001b[0m)]             │            │                   │\n",
+              "├─────────────────────┼───────────────────┼────────────┼───────────────────┤\n",
+              "│ dense_1 (\u001b[38;5;33mDense\u001b[0m)     │ (\u001b[38;5;45mNone\u001b[0m, \u001b[38;5;45mNone\u001b[0m, \u001b[38;5;34m5\u001b[0m)   │      \u001b[38;5;34m1,285\u001b[0m │ lstm_3[\u001b[38;5;34m0\u001b[0m][\u001b[38;5;34m0\u001b[0m]      │\n",
+              "└─────────────────────┴───────────────────┴────────────┴───────────────────┘\n"
+            ],
+            "text/html": [
+              "<pre style=\"white-space:pre;overflow-x:auto;line-height:normal;font-family:Menlo,'DejaVu Sans Mono',consolas,'Courier New',monospace\">┏━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━┓\n",
+              "┃<span style=\"font-weight: bold\"> Layer (type)        </span>┃<span style=\"font-weight: bold\"> Output Shape      </span>┃<span style=\"font-weight: bold\">    Param # </span>┃<span style=\"font-weight: bold\"> Connected to      </span>┃\n",
+              "┡━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━┩\n",
+              "│ input_layer_2       │ (<span style=\"color: #00d7ff; text-decoration-color: #00d7ff\">None</span>, <span style=\"color: #00d7ff; text-decoration-color: #00d7ff\">None</span>, <span style=\"color: #00af00; text-decoration-color: #00af00\">5</span>)   │          <span style=\"color: #00af00; text-decoration-color: #00af00\">0</span> │ -                 │\n",
+              "│ (<span style=\"color: #0087ff; text-decoration-color: #0087ff\">InputLayer</span>)        │                   │            │                   │\n",
+              "├─────────────────────┼───────────────────┼────────────┼───────────────────┤\n",
+              "│ input_layer_3       │ (<span style=\"color: #00d7ff; text-decoration-color: #00d7ff\">None</span>, <span style=\"color: #00d7ff; text-decoration-color: #00d7ff\">None</span>, <span style=\"color: #00af00; text-decoration-color: #00af00\">5</span>)   │          <span style=\"color: #00af00; text-decoration-color: #00af00\">0</span> │ -                 │\n",
+              "│ (<span style=\"color: #0087ff; text-decoration-color: #0087ff\">InputLayer</span>)        │                   │            │                   │\n",
+              "├─────────────────────┼───────────────────┼────────────┼───────────────────┤\n",
+              "│ lstm_2 (<span style=\"color: #0087ff; text-decoration-color: #0087ff\">LSTM</span>)       │ [(<span style=\"color: #00d7ff; text-decoration-color: #00d7ff\">None</span>, <span style=\"color: #00af00; text-decoration-color: #00af00\">256</span>),     │    <span style=\"color: #00af00; text-decoration-color: #00af00\">268,288</span> │ input_layer_2[<span style=\"color: #00af00; text-decoration-color: #00af00\">0</span>]… │\n",
+              "│                     │ (<span style=\"color: #00d7ff; text-decoration-color: #00d7ff\">None</span>, <span style=\"color: #00af00; text-decoration-color: #00af00\">256</span>),      │            │                   │\n",
+              "│                     │ (<span style=\"color: #00d7ff; text-decoration-color: #00d7ff\">None</span>, <span style=\"color: #00af00; text-decoration-color: #00af00\">256</span>)]      │            │                   │\n",
+              "├─────────────────────┼───────────────────┼────────────┼───────────────────┤\n",
+              "│ lstm_3 (<span style=\"color: #0087ff; text-decoration-color: #0087ff\">LSTM</span>)       │ [(<span style=\"color: #00d7ff; text-decoration-color: #00d7ff\">None</span>, <span style=\"color: #00d7ff; text-decoration-color: #00d7ff\">None</span>,     │    <span style=\"color: #00af00; text-decoration-color: #00af00\">268,288</span> │ input_layer_3[<span style=\"color: #00af00; text-decoration-color: #00af00\">0</span>]… │\n",
+              "│                     │ <span style=\"color: #00af00; text-decoration-color: #00af00\">256</span>), (<span style=\"color: #00d7ff; text-decoration-color: #00d7ff\">None</span>,      │            │ lstm_2[<span style=\"color: #00af00; text-decoration-color: #00af00\">0</span>][<span style=\"color: #00af00; text-decoration-color: #00af00\">1</span>],     │\n",
+              "│                     │ <span style=\"color: #00af00; text-decoration-color: #00af00\">256</span>), (<span style=\"color: #00d7ff; text-decoration-color: #00d7ff\">None</span>,      │            │ lstm_2[<span style=\"color: #00af00; text-decoration-color: #00af00\">0</span>][<span style=\"color: #00af00; text-decoration-color: #00af00\">2</span>]      │\n",
+              "│                     │ <span style=\"color: #00af00; text-decoration-color: #00af00\">256</span>)]             │            │                   │\n",
+              "├─────────────────────┼───────────────────┼────────────┼───────────────────┤\n",
+              "│ dense_1 (<span style=\"color: #0087ff; text-decoration-color: #0087ff\">Dense</span>)     │ (<span style=\"color: #00d7ff; text-decoration-color: #00d7ff\">None</span>, <span style=\"color: #00d7ff; text-decoration-color: #00d7ff\">None</span>, <span style=\"color: #00af00; text-decoration-color: #00af00\">5</span>)   │      <span style=\"color: #00af00; text-decoration-color: #00af00\">1,285</span> │ lstm_3[<span style=\"color: #00af00; text-decoration-color: #00af00\">0</span>][<span style=\"color: #00af00; text-decoration-color: #00af00\">0</span>]      │\n",
+              "└─────────────────────┴───────────────────┴────────────┴───────────────────┘\n",
+              "</pre>\n"
+            ]
+          },
+          "metadata": {}
+        },
+        {
+          "output_type": "display_data",
+          "data": {
+            "text/plain": [
+              "\u001b[1m Total params: \u001b[0m\u001b[38;5;34m537,861\u001b[0m (2.05 MB)\n"
+            ],
+            "text/html": [
+              "<pre style=\"white-space:pre;overflow-x:auto;line-height:normal;font-family:Menlo,'DejaVu Sans Mono',consolas,'Courier New',monospace\"><span style=\"font-weight: bold\"> Total params: </span><span style=\"color: #00af00; text-decoration-color: #00af00\">537,861</span> (2.05 MB)\n",
+              "</pre>\n"
+            ]
+          },
+          "metadata": {}
+        },
+        {
+          "output_type": "display_data",
+          "data": {
+            "text/plain": [
+              "\u001b[1m Trainable params: \u001b[0m\u001b[38;5;34m537,861\u001b[0m (2.05 MB)\n"
+            ],
+            "text/html": [
+              "<pre style=\"white-space:pre;overflow-x:auto;line-height:normal;font-family:Menlo,'DejaVu Sans Mono',consolas,'Courier New',monospace\"><span style=\"font-weight: bold\"> Trainable params: </span><span style=\"color: #00af00; text-decoration-color: #00af00\">537,861</span> (2.05 MB)\n",
+              "</pre>\n"
+            ]
+          },
+          "metadata": {}
+        },
+        {
+          "output_type": "display_data",
+          "data": {
+            "text/plain": [
+              "\u001b[1m Non-trainable params: \u001b[0m\u001b[38;5;34m0\u001b[0m (0.00 B)\n"
+            ],
+            "text/html": [
+              "<pre style=\"white-space:pre;overflow-x:auto;line-height:normal;font-family:Menlo,'DejaVu Sans Mono',consolas,'Courier New',monospace\"><span style=\"font-weight: bold\"> Non-trainable params: </span><span style=\"color: #00af00; text-decoration-color: #00af00\">0</span> (0.00 B)\n",
+              "</pre>\n"
+            ]
+          },
+          "metadata": {}
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [],
+      "metadata": {
+        "id": "w2XDkzWIPhNs"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [],
+      "metadata": {
+        "id": "b3Xy6lf6PhK2"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [],
+      "metadata": {
+        "id": "k3BeYhhjPhIE"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [],
+      "metadata": {
+        "id": "sz5CA2MSPhFV"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [],
+      "metadata": {
+        "id": "gVetKXgpPhCs"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {
+        "id": "H2yYcAxtPad6"
+      },
+      "outputs": [],
+      "source": []
+    }
+  ]
+}
